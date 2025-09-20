@@ -1,7 +1,7 @@
 import os
 import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+import telebot
+from telebot import types
 
 # Setup logging
 logging.basicConfig(
@@ -10,10 +10,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Get bot token from environment variable
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    logger.error("❌ TELEGRAM_BOT_TOKEN environment variable is missing!")
+    print("❌ ERROR: TELEGRAM_BOT_TOKEN not found!")
+    exit(1)
+
+# Create bot instance
+bot = telebot.TeleBot(BOT_TOKEN)
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
     """Send welcome message when command /start is issued."""
-    user = update.effective_user
-    await update.message.reply_text(
+    user = message.from_user
+    bot.reply_to(message, 
         f"🤖 Hello {user.first_name}!\n\n"
         "I am your File Rename Bot. I can help you:\n\n"
         "• Remove specific words from file names\n"
@@ -23,7 +34,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use /help for instructions or /rename to start!"
     )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@bot.message_handler(commands=['help'])
+def send_help(message):
     """Send help message when command /help is issued."""
     help_text = """
 📋 **Available Commands:**
@@ -48,11 +60,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Bot must be admin in your channel
 • Bot needs 'Edit messages' permission
 """
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    bot.reply_to(message, help_text, parse_mode="Markdown")
 
-async def rename_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@bot.message_handler(commands=['rename'])
+def start_rename(message):
     """Start the rename process."""
-    await update.message.reply_text(
+    bot.reply_to(message,
         "🔄 **File Rename Process Started**\n\n"
         "Please send me the word you want to find in file names.\n\n"
         "Examples:\n"
@@ -63,64 +76,28 @@ async def rename_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@bot.message_handler(func=lambda message: True)
+def handle_all_messages(message):
     """Handle all text messages."""
-    user_text = update.message.text
+    user_text = message.text
     
     # Ignore commands
     if user_text.startswith('/'):
         return
     
     # Simulate processing
-    await update.message.reply_text(
+    bot.reply_to(message,
         f"✅ Got it! You sent: '{user_text}'\n\n"
         "In the full version, I would:\n"
         "1. Ask for your channel username/ID\n"
         "2. Ask what action to perform (remove/add/replace)\n"
         "3. Ask for message range to process\n"
         "4. Execute the changes in your channel\n\n"
-        "This basic version confirms I'm working!",
+        "This basic version confirms I'm working! 🎉",
         parse_mode="Markdown"
     )
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle errors."""
-    logger.error("Error occurred:", exc_info=context.error)
-    try:
-        await update.message.reply_text("❌ Sorry, something went wrong. Please try /start again.")
-    except:
-        pass
-
-def main():
-    """Start the bot."""
-    # Get bot token from environment variable
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    
-    if not token:
-        logger.error("❌ TELEGRAM_BOT_TOKEN environment variable is missing!")
-        print("❌ ERROR: TELEGRAM_BOT_TOKEN not found!")
-        return
-    
-    print(f"✅ Starting bot with token: {token[:10]}...{token[-5:]}")
-    
-    try:
-        # Create application
-        application = Application.builder().token(token).build()
-        
-        # Add handlers
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("rename", rename_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        application.add_error_handler(error_handler)
-        
-        # Start the bot
-        print("✅ Bot is starting in polling mode...")
-        application.run_polling()
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to start bot: {e}")
-        print(f"❌ CRITICAL ERROR: {e}")
-
 if __name__ == "__main__":
-    main()
+    print(f"✅ Starting bot with token: {BOT_TOKEN[:10]}...{BOT_TOKEN[-5:]}")
+    print("✅ Bot is starting in polling mode...")
+    bot.infinity_polling()
